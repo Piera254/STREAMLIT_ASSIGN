@@ -27,7 +27,12 @@ You can view publication trends over time, analyze top journals, and preview the
 # ---- Sidebar Filters ----
 st.sidebar.header("🔍 Filter Data")
 year_list = sorted(df['publish_time'].dropna().dt.year.unique())
-selected_year = st.sidebar.selectbox("Select Year", options=year_list)
+# protect against empty year list (avoids selectbox error)
+if not year_list:
+    st.sidebar.warning("No publish_time data available in the dataset.")
+    selected_year = None
+else:
+    selected_year = st.sidebar.selectbox("Select Year", options=year_list)
 min_count = st.sidebar.slider("Minimum number of publications", 10, 500, 100)
 
 
@@ -36,12 +41,26 @@ filtered_df = df[df['publish_time'].dt.year == selected_year]
 
 
 
-# Publications over time
+# Publications over time (aggregated by month)
 st.subheader("Publications Over Time")
-year_counts = filtered_df['publish_time'].value_counts().sort_index()
-fig, ax = plt.subplots()
-ax.barh(year_counts.index, year_counts.values, color='skyblue')
-st.pyplot(fig)
+if selected_year is not None:
+    # aggregate counts by month within the selected year for a cleaner timeline
+    year_counts = (
+        filtered_df['publish_time']
+        .dt.to_period('M')
+        .value_counts()
+        .sort_index()
+    )
+    fig, ax = plt.subplots()
+    labels = year_counts.index.astype(str)
+    ax.bar(labels, year_counts.values, color='skyblue')
+    ax.set_xlabel('Month')
+    ax.set_ylabel('Number of publications')
+    ax.tick_params(axis='x', rotation=45)
+    plt.tight_layout()
+    st.pyplot(fig)
+else:
+    st.info("No publish_time data to plot.")
 
 #Top journals
 st.subheader("Top Journals")
@@ -62,7 +81,8 @@ bars = ax.bar(source_counts.index, source_counts.values, color='teal')
 ax.set_title('Distribution of Paper Counts by Source', fontsize=14)
 ax.set_xlabel('Source', fontsize=12)
 ax.set_ylabel('Number of Papers', fontsize=12)
-ax.set_xticks(rotation=45, ha='right')
+# correct way to rotate tick labels
+ax.tick_params(axis='x', rotation=45)
 
 # Add exact counts on each bar
 for bar in bars:
